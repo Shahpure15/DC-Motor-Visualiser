@@ -1,197 +1,304 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>DC Motor 3D Viewer</title>
-  <style>
-    html, body { height: 100%; margin: 0; overflow: hidden; background: #222; }
-    #info {
-      position: absolute;
-      top: 10px;
-      width: 100%;
-      text-align: center;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      z-index: 10;
-      pointer-events: none;
-      text-shadow: 1px 1px 2px #000;
-    }
-    #loading {
-      position: fixed;
-      top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.8);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.5em;
-      z-index: 100;
-    }
-    .controls {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 10px;
-      z-index: 10;
-    }
-    button {
-      padding: 8px 18px;
-      border: none;
-      border-radius: 4px;
-      background: #fff;
-      color: #222;
-      font-size: 1em;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      transition: background 0.2s;
-    }
-    button:hover { background: #eee; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DC Motor 3D Viewer</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        }
+        canvas { 
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            color: #1a1a1a;
+            font-size: 1.2em;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+        }
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            background: #2962ff;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            min-width: 140px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        button:hover {
+            background: #1e4bd8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Mobile Responsive Design */
+        @media (max-width: 768px) {
+            #info {
+                font-size: 1em;
+                top: 10px;
+            }
+            #controls {
+                bottom: 10px;
+                width: 90%;
+                padding: 8px;
+                gap: 8px;
+            }
+            button {
+                padding: 10px 20px;
+                font-size: 14px;
+                min-width: 120px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #controls {
+                width: 95%;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            button {
+                width: 100%;
+                margin: 2px 0;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div id="loading">Loading DC Motor Model...</div>
-  <div id="info">DC Motor 3D Viewer &mdash; Drag to rotate, scroll to zoom</div>
-  <div class="controls">
-    <button id="resetBtn">Reset View</button>
-    <button id="toggleRotation">Start Rotation</button>
-    <button id="explodeBtn">Explode</button>
-  </div>
-  <script async src="https://unpkg.com/es-module-shims@1.8.3/dist/es-module-shims.js"></script>
-  <script type="importmap">
+    <div id="info">DC Motor Visualizer</div>
+    <div id="controls">
+        <button id="rotateBtn">Start Rotation</button>
+        <button id="disassembleBtn">Dis-Assemble</button>
+        <button id="resetBtn">Reset View</button>
+    </div>
+
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
     {
-      "imports": {
-        "three": "https://unpkg.com/three@0.153.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.153.0/examples/jsm/"
-      }
+        "imports": {
+            "three": "https://unpkg.com/three@0.153.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.153.0/examples/jsm/"
+        }
     }
-  </script>
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-    let camera, scene, renderer, controls, motor, isRotating = false, exploded = false;
-    const loadingDiv = document.getElementById('loading');
-    const toggleBtn = document.getElementById('toggleRotation');
-    const explodeBtn = document.getElementById('explodeBtn');
+        let scene, camera, renderer, controls, motor;
+        let isRotating = false;
+        let isDisassembled = false;
 
-    // Scene
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x222222);
+        init();
+        animate();
 
-    // Camera (move further for smaller model)
-    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 2, 22); // moved further back
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color('#e6eeff'); // Light blue-gray for better contrast
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    document.body.appendChild(renderer.domElement);
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 15);
 
-    // Improved Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2)); // brighter ambient
-    const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.5); // brighter
-    dirLight1.position.set(10, 20, 10);
-    scene.add(dirLight1);
-    const dirLight2 = new THREE.DirectionalLight(0xffffff, 1.8); // brighter
-    dirLight2.position.set(-10, -20, -10);
-    scene.add(dirLight2);
-    const pointLight = new THREE.PointLight(0xffffff, 2.0, 100); // brighter
-    pointLight.position.set(0, 10, 0);
-    scene.add(pointLight);
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            document.body.appendChild(renderer.domElement);
 
-    // Controls
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.minDistance = 10;
-    controls.maxDistance = 40;
-    controls.target.set(0, 1, 0);
+            // Lighting
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
 
-    // Store original positions for explode
-    let originalPositions = [];
+            // Main directional light (key light)
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            mainLight.position.set(5, 5, 5);
+            scene.add(mainLight);
 
-    // Load Model
-    const loader = new GLTFLoader();
-    loader.load(
-      'models/dc_motor.gltf',
-      function(gltf) {
-        motor = gltf.scene;
-        motor.position.set(0, 0, 0);
-        motor.scale.set(1, 1, 1);
-        scene.add(motor);
-        // Save original positions of children for explode
-        originalPositions = [];
-        motor.traverse(child => {
-          if (child.isMesh || child.isGroup) {
-            originalPositions.push({
-              obj: child,
-              pos: child.position.clone()
+            // Fill light
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            fillLight.position.set(-5, 3, 0);
+            scene.add(fillLight);
+
+            // Back light for rim highlighting
+            const backLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            backLight.position.set(0, 2, -5);
+            scene.add(backLight);
+
+            // Top light for additional illumination
+            const topLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            topLight.position.set(0, 10, 0);
+            scene.add(topLight);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 30;
+            controls.minDistance = 8;
+
+            // Load Model
+            const loader = new GLTFLoader();
+            loader.load('models/dc_motor.gltf', function(gltf) {
+                motor = gltf.scene;
+                scene.add(motor);
+                
+                // Center and scale model
+                const box = new THREE.Box3().setFromObject(motor);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                
+                // Center the model
+                motor.position.x = -center.x;
+                motor.position.y = -center.y;
+                motor.position.z = -center.z;
+                
+                // Scale the model if needed
+                const maxDim = Math.max(size.x, size.y, size.z);
+                if (maxDim > 10) {
+                    const scale = 10 / maxDim;
+                    motor.scale.set(scale, scale, scale);
+                }
+                
+                // Adjust camera to fit model
+                const dist = Math.max(size.x, size.y, size.z) * 2.5;
+                camera.position.set(dist, dist/2, dist);
+                camera.lookAt(0, 0, 0);
+                controls.update();
             });
-          }
-        });
-        loadingDiv.style.display = 'none';
-      },
-      function(xhr) {
-        loadingDiv.textContent = `Loading DC Motor Model... ${(xhr.loaded / xhr.total * 100).toFixed(0)}%`;
-      },
-      function(error) {
-        loadingDiv.textContent = 'Error loading model.';
-        console.error('GLTF load error:', error);
-      }
-    );
 
-    // Handle window resize
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize, false);
+            document.getElementById('rotateBtn').onclick = toggleRotation;
+            document.getElementById('disassembleBtn').onclick = toggleDisassemble;
+            document.getElementById('resetBtn').onclick = resetView;
+        }
 
-    // Controls: Reset, Rotation, Explode
-    document.getElementById('resetBtn').onclick = () => {
-      camera.position.set(0, 2, 22);
-      controls.target.set(0, 1, 0);
-      controls.update();
-      if (exploded) explodeBtn.click(); // Reset explode if active
-    };
-    toggleBtn.onclick = () => {
-      isRotating = !isRotating;
-      toggleBtn.textContent = isRotating ? 'Stop Rotation' : 'Start Rotation';
-    };
-    explodeBtn.onclick = () => {
-      if (!motor) return;
-      exploded = !exploded;
-      explodeBtn.textContent = exploded ? 'Un-Explode' : 'Explode';
-      // Explode: move children outward from center
-      if (exploded) {
-        const center = new THREE.Vector3();
-        new THREE.Box3().setFromObject(motor).getCenter(center);
-        originalPositions.forEach(({obj, pos}) => {
-          const dir = obj.position.clone().sub(center).normalize();
-          obj.position.add(dir.multiplyScalar(2.5));
-        });
-      } else {
-        // Restore original positions
-        originalPositions.forEach(({obj, pos}) => {
-          obj.position.copy(pos);
-        });
-      }
-    };
+        function resetView() {
+            if (!motor) return;
+            
+            // Reset rotation
+            isRotating = false;
+            document.getElementById('rotateBtn').textContent = 'Start Rotation';
+            motor.rotation.set(0, 0, 0);
+            
+            // Reset assembly state
+            if (isDisassembled) {
+                isDisassembled = false;
+                document.getElementById('disassembleBtn').textContent = 'Dis-Assemble';
+                motor.traverse(function(child) {
+                    if (child.isMesh) {
+                        child.position.set(0, 0, 0);
+                    }
+                });
+            }
+            
+            // Reset camera
+            const box = new THREE.Box3().setFromObject(motor);
+            const size = box.getSize(new THREE.Vector3());
+            const dist = Math.max(size.x, size.y, size.z) * 2.5;
+            camera.position.set(dist, dist/2, dist);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
 
-    // Animation loop
-    function animate() {
-      requestAnimationFrame(animate);
-      if (motor && isRotating) {
-        motor.rotation.y += 0.01;
-      }
-      controls.update();
-      renderer.render(scene, camera);
-    }
-    animate();
-  </script>
+        function toggleRotation() {
+            if (isDisassembled) return; // Don't rotate when disassembled
+            isRotating = !isRotating;
+            document.getElementById('rotateBtn').textContent = isRotating ? 'Stop Rotation' : 'Start Rotation';
+        }
+
+        function toggleDisassemble() {
+            if (!motor) return;
+            isDisassembled = !isDisassembled;
+            document.getElementById('disassembleBtn').textContent = isDisassembled ? 'Assemble' : 'Dis-Assemble';
+            
+            // Stop rotation when disassembling
+            if (isDisassembled && isRotating) {
+                isRotating = false;
+                document.getElementById('rotateBtn').textContent = 'Start Rotation';
+            }
+            
+            motor.traverse(function(child) {
+                if (child.isMesh) {
+                    // Skip battery parts during disassembly
+                    const isBatteryPart = child.material && 
+                        (child.material.name === 'BATTERY' || 
+                         child.material.name === 'battery_yellow' || 
+                         child.material.name === 'battery_black');
+                    
+                    if (!isBatteryPart) {
+                        if (isDisassembled) {
+                            // Move motor parts outward
+                            const angle = Math.random() * Math.PI * 2;
+                            const radius = 3;
+                            const x = Math.cos(angle) * radius;
+                            const z = Math.sin(angle) * radius;
+                            const y = child.position.y + (Math.random() - 0.5) * 2;
+                            child.position.set(x, y, z);
+                        } else {
+                            // Reset position
+                            child.position.set(0, 0, 0);
+                        }
+                    }
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            if (motor && isRotating && !isDisassembled) {
+                motor.rotation.y += 0.01;
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
 </body>
 </html>
