@@ -5,25 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DC Motor 3D Viewer</title>
     <style>
-        body { 
-            margin: 0; 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-        }
-        canvas { 
-            display: block;
-            width: 100%;
-            height: 100vh;
-        }
-        #info {
+        body { margin: 0; }
+        canvas { display: block; }
+        .label {
             position: absolute;
-            top: 20px;
-            width: 100%;
-            text-align: center;
-            z-index: 100;
-            color: #1a1a1a;
-            font-size: 1.2em;
-            font-weight: 600;
-            text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+            color: #000000;
+            padding: 4px 8px;
+            background-color: rgba(255, 255, 255, 0.85);
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            font-family: Arial, sans-serif;
         }
         #controls {
             position: fixed;
@@ -32,8 +24,6 @@
             transform: translateX(-50%);
             z-index: 100;
             display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
             gap: 10px;
             padding: 10px;
             background: rgba(255, 255, 255, 0.9);
@@ -49,54 +39,14 @@
             cursor: pointer;
             font-size: 16px;
             font-weight: 500;
-            transition: all 0.2s ease;
             min-width: 140px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         button:hover {
             background: #1e4bd8;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        
-        /* Mobile Responsive Design */
-        @media (max-width: 768px) {
-            #info {
-                font-size: 1em;
-                top: 10px;
-            }
-            #controls {
-                bottom: 10px;
-                width: 90%;
-                padding: 8px;
-                gap: 8px;
-            }
-            button {
-                padding: 10px 20px;
-                font-size: 14px;
-                min-width: 120px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            #controls {
-                width: 95%;
-                flex-direction: column;
-                align-items: stretch;
-            }
-            button {
-                width: 100%;
-                margin: 2px 0;
-            }
         }
     </style>
 </head>
 <body>
-    <div id="info">DC Motor Visualizer</div>
     <div id="controls">
         <button id="rotateBtn">Start Rotation</button>
         <button id="disassembleBtn">Dis-Assemble</button>
@@ -112,6 +62,7 @@
         }
     }
     </script>
+
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -120,173 +71,141 @@
         let scene, camera, renderer, controls, motor;
         let isRotating = false;
         let isDisassembled = false;
+        let labels = [];
 
-        init();
-        animate();
+        // Define fixed positions for each part
+        const partPositions = {
+            'Permanent Magnet (N)': { pos: new THREE.Vector3(-4, 0, 0), color: '#0355ff' },
+            'Permanent Magnet (S)': { pos: new THREE.Vector3(4, 0, 0), color: '#ff0505' },
+            'Commutator': { pos: new THREE.Vector3(0, 0, 3), color: '#666666' },
+            'Armature Coil': { pos: new THREE.Vector3(0, 3, 0), color: '#ffd700' },
+            'Carbon Brushes': { pos: new THREE.Vector3(-2, -2, 2), color: '#4444ff' },
+            'Battery': { pos: new THREE.Vector3(0, -3, 0), color: '#333333' }
+        };
 
         function init() {
-            // Scene
             scene = new THREE.Scene();
-            scene.background = new THREE.Color('#e6eeff'); // Light blue-gray for better contrast
+            scene.background = new THREE.Color('#e6eeff');
 
-            // Camera
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 5, 15);
 
-            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.outputEncoding = THREE.sRGBEncoding;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.2;
             document.body.appendChild(renderer.domElement);
 
-            // Lighting
-            // Ambient light
+            // Improved lighting setup
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambientLight);
 
-            // Main directional light (key light)
             const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
             mainLight.position.set(5, 5, 5);
             scene.add(mainLight);
 
-            // Fill light
             const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
             fillLight.position.set(-5, 3, 0);
             scene.add(fillLight);
 
-            // Back light for rim highlighting
-            const backLight = new THREE.DirectionalLight(0xffffff, 0.6);
-            backLight.position.set(0, 2, -5);
-            scene.add(backLight);
-
-            // Top light for additional illumination
-            const topLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            topLight.position.set(0, 10, 0);
-            scene.add(topLight);
-
-            // Controls
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.maxDistance = 30;
-            controls.minDistance = 8;
 
-            // Load Model
+            loadModel();
+            setupEventListeners();
+        }
+
+        function createLabel(text, position, color) {
+            const div = document.createElement('div');
+            div.className = 'label';
+            div.textContent = text;
+            div.style.borderLeft = `4px solid ${color}`;
+            div.style.visibility = 'hidden';
+            document.body.appendChild(div);
+            return { element: div, position: position.clone() };
+        }
+
+        function updateLabels() {
+            if (!isDisassembled) return;
+            labels.forEach(label => {
+                const vector = label.position.clone();
+                vector.project(camera);
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = ((-vector.y * 0.5 + 0.5) * window.innerHeight);
+                label.element.style.transform = `translate(${x}px, ${y}px)`;
+            });
+        }
+
+        function loadModel() {
             const loader = new GLTFLoader();
             loader.load('models/dc_motor.gltf', function(gltf) {
                 motor = gltf.scene;
                 scene.add(motor);
-                
-                // Center and scale model
-                const box = new THREE.Box3().setFromObject(motor);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-                
-                // Center the model
-                motor.position.x = -center.x;
-                motor.position.y = -center.y;
-                motor.position.z = -center.z;
-                
-                // Scale the model if needed
-                const maxDim = Math.max(size.x, size.y, size.z);
-                if (maxDim > 10) {
-                    const scale = 10 / maxDim;
-                    motor.scale.set(scale, scale, scale);
-                }
-                
-                // Adjust camera to fit model
-                const dist = Math.max(size.x, size.y, size.z) * 2.5;
-                camera.position.set(dist, dist/2, dist);
-                camera.lookAt(0, 0, 0);
-                controls.update();
-            });
 
-            // Event Listeners
-            window.addEventListener('resize', onWindowResize, false);
-            document.getElementById('rotateBtn').onclick = toggleRotation;
-            document.getElementById('disassembleBtn').onclick = toggleDisassemble;
-            document.getElementById('resetBtn').onclick = resetView;
-        }
-
-        function resetView() {
-            if (!motor) return;
-            
-            // Reset rotation
-            isRotating = false;
-            document.getElementById('rotateBtn').textContent = 'Start Rotation';
-            motor.rotation.set(0, 0, 0);
-            
-            // Reset assembly state
-            if (isDisassembled) {
-                isDisassembled = false;
-                document.getElementById('disassembleBtn').textContent = 'Dis-Assemble';
-                motor.traverse(function(child) {
-                    if (child.isMesh) {
-                        child.position.set(0, 0, 0);
-                    }
+                // Create labels for each part
+                Object.entries(partPositions).forEach(([name, data]) => {
+                    const label = createLabel(name, data.pos, data.color);
+                    labels.push(label);
                 });
-            }
-            
-            // Reset camera
-            const box = new THREE.Box3().setFromObject(motor);
-            const size = box.getSize(new THREE.Vector3());
-            const dist = Math.max(size.x, size.y, size.z) * 2.5;
-            camera.position.set(dist, dist/2, dist);
-            camera.lookAt(0, 0, 0);
-            controls.target.set(0, 0, 0);
-            controls.update();
-        }
-
-        function toggleRotation() {
-            if (isDisassembled) return; // Don't rotate when disassembled
-            isRotating = !isRotating;
-            document.getElementById('rotateBtn').textContent = isRotating ? 'Stop Rotation' : 'Start Rotation';
+            });
         }
 
         function toggleDisassemble() {
             if (!motor) return;
             isDisassembled = !isDisassembled;
             document.getElementById('disassembleBtn').textContent = isDisassembled ? 'Assemble' : 'Dis-Assemble';
-            
-            // Stop rotation when disassembling
+
             if (isDisassembled && isRotating) {
                 isRotating = false;
                 document.getElementById('rotateBtn').textContent = 'Start Rotation';
             }
-            
+
             motor.traverse(function(child) {
                 if (child.isMesh) {
-                    // Skip battery parts during disassembly
-                    const isBatteryPart = child.material && 
-                        (child.material.name === 'BATTERY' || 
-                         child.material.name === 'battery_yellow' || 
-                         child.material.name === 'battery_black');
-                    
-                    if (!isBatteryPart) {
-                        if (isDisassembled) {
-                            // Move motor parts outward
-                            const angle = Math.random() * Math.PI * 2;
-                            const radius = 3;
-                            const x = Math.cos(angle) * radius;
-                            const z = Math.sin(angle) * radius;
-                            const y = child.position.y + (Math.random() - 0.5) * 2;
-                            child.position.set(x, y, z);
-                        } else {
-                            // Reset position
-                            child.position.set(0, 0, 0);
+                    let partName = '';
+                    if (child.material) {
+                        switch(child.material.name) {
+                            case 'magnet_blue': partName = 'Permanent Magnet (N)'; break;
+                            case 'magnet_red': partName = 'Permanent Magnet (S)'; break;
+                            case 'BATTERY':
+                            case 'battery_yellow':
+                            case 'battery_black': partName = 'Battery'; break;
+                            case 'Brush': partName = 'Carbon Brushes'; break;
+                            case 'coil': partName = 'Armature Coil'; break;
+                            case 'connector': partName = 'Commutator'; break;
                         }
+                    }
+
+                    if (partName && partPositions[partName]) {
+                        const targetPos = isDisassembled ? partPositions[partName].pos : new THREE.Vector3(0, 0, 0);
+                        const duration = 1000;
+                        const startPos = child.position.clone();
+                        
+                        let startTime = null;
+                        function animate(currentTime) {
+                            if (!startTime) startTime = currentTime;
+                            const elapsed = currentTime - startTime;
+                            const progress = Math.min(elapsed / duration, 1);
+                            
+                            // Cubic easing
+                            const easeProgress = progress < 0.5 
+                                ? 4 * progress * progress * progress 
+                                : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+                            child.position.lerpVectors(startPos, targetPos, easeProgress);
+                            
+                            if (progress < 1) {
+                                requestAnimationFrame(animate);
+                            }
+                        }
+                        requestAnimationFrame(animate);
                     }
                 }
             });
-        }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            // Show/hide labels
+            labels.forEach(label => {
+                label.element.style.visibility = isDisassembled ? 'visible' : 'hidden';
+            });
         }
 
         function animate() {
@@ -297,8 +216,40 @@
                 motor.rotation.y += 0.01;
             }
 
+            updateLabels();
             renderer.render(scene, camera);
         }
+
+        function setupEventListeners() {
+            window.addEventListener('resize', onWindowResize, false);
+            document.getElementById('rotateBtn').onclick = () => {
+                isRotating = !isRotating;
+                document.getElementById('rotateBtn').textContent = isRotating ? 'Stop Rotation' : 'Start Rotation';
+            };
+            document.getElementById('disassembleBtn').onclick = toggleDisassemble;
+            document.getElementById('resetBtn').onclick = () => {
+                if (motor) {
+                    isRotating = false;
+                    document.getElementById('rotateBtn').textContent = 'Start Rotation';
+                    motor.rotation.set(0, 0, 0);
+                    if (isDisassembled) {
+                        toggleDisassemble();
+                    }
+                    camera.position.set(0, 5, 15);
+                    camera.lookAt(0, 0, 0);
+                    controls.reset();
+                }
+            };
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init();
+        animate();
     </script>
 </body>
 </html>
